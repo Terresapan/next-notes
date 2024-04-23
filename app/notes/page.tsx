@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import Note from "@/components/Note";
 
 export const metadata: Metadata = {
-  title: "AI Powered Notes Taking App",
+  title: "AI Powered Note Taking App",
 };
 
 export default async function NotesPage() {
