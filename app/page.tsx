@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import ModeToggle from "@/components/ModeToggl";
-import { SignInButton } from "@clerk/nextjs";
+import Link from "next/link";
 
 export default function Home() {
   const { userId } = auth();
@@ -22,13 +22,11 @@ export default function Home() {
         An AI-Powered note-taking app, built with OpenAI, Pinecone, Next.js,
         Shadcn UI, Clerk, MongoDB, Prisma, and more.
       </p>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
         <ModeToggle />
-        <div>
-          <SignInButton>
-            <Button size={"lg"}>Open</Button>
-          </SignInButton>
-        </div>
+        <Button size="lg" asChild>
+          <Link href="/notes">Open</Link>
+        </Button>
       </div>
     </main>
   );
