@@ -15,7 +15,7 @@ interface NoteProps {
   note: NoteModel;
 }
 
-export default function Note({ note }: NoteProps) {
+export default function Notes({ note }: NoteProps) {
   const [showEditDiualog, setShowEditDialog] = useState(false);
   const wasUpdated = note.updatedAt > note.createdAt;
 

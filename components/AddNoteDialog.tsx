@@ -24,12 +24,12 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import LoadingButton from "./ui/loading-button";
 import { useRouter } from "next/navigation";
-import { Note } from "@prisma/client";
+import type { NoteDocument } from "@/lib/db/mongoose";
 
 interface AddNoteDialogProps {
   open: boolean;
   setOpen: (open: boolean) => void;
-  noteToEdit?: Note;
+  noteToEdit?: NoteDocument;
 }
 export default function AddNoteDialog({
   open,

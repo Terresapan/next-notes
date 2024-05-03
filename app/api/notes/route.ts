@@ -2,7 +2,8 @@ import { createNoteSchema } from "@/lib/validation/note";
 import { updateNoteSchema } from "@/lib/validation/note";
 import { deleteNoteSchema } from "@/lib/validation/note";
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db/prisma";
+import Note from "@/lib/db/mongoose";
+import { ObjectId } from "mongodb";
 
 export async function POST(request: Request) {
   try {
@@ -23,14 +24,13 @@ export async function POST(request: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const note = await prisma.note.create({
-      data: {
-        title,
-        content,
-        userId,
-      },
-    });
-
+    const note = await Note.create({
+      _id: new ObjectId(),
+      title,
+      content,
+      userId,
+      createdAt: new Date(),
+    } as any);
     return Response.json({ note }, { status: 201 });
   } catch (error) {
     console.log(error);
@@ -49,7 +49,7 @@ export async function PUT(req: Request) {
     }
 
     const { id, title, content } = parseResult.data;
-    const note = await prisma.note.findUnique({ where: { id } });
+    const note = await Note.findById(id);
 
     if (!note) {
       return Response.json({ error: "Note not found" }, { status: 404 });
@@ -60,14 +60,14 @@ export async function PUT(req: Request) {
     if (!userId || userId !== note.userId) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const updatedNote = await prisma.note.update({
-      where: { id },
-      data: {
-        title,
-        content,
-      },
+
+    await Note.findByIdAndUpdate(id, {
+      title,
+      content,
+      updatedAt: new Date(),
     });
-    return Response.json({ note: updatedNote }, { status: 200 });
+
+    return Response.json({ note: await Note.findById(id) }, { status: 200 });
   } catch (error) {
     console.error(error);
     return Response.json({ error: "Internal Server Error" }, { status: 500 });
@@ -85,7 +85,7 @@ export async function DELETE(req: Request) {
     }
 
     const { id } = parseResult.data;
-    const note = await prisma.note.findUnique({ where: { id } });
+    const note = await Note.findById(id);
 
     if (!note) {
       return Response.json({ error: "Note not found" }, { status: 404 });
@@ -96,10 +96,10 @@ export async function DELETE(req: Request) {
     if (!userId || userId !== note.userId) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
-    await prisma.note.delete({ where: { id } });
 
-    return Response.json(
-      { message: "Note deleted successfully" },
+    await Note.findByIdAndDelete(id);
+    return new Response(
+      JSON.stringify({ message: "Note deleted successfully" }),
       { status: 200 },
     );
   } catch (error) {
