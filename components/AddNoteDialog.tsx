@@ -50,25 +50,37 @@ export default function AddNoteDialog({
 
   async function onSubmit(input: CreateNoteSchema) {
     try {
-      if (noteToEdit) {
-        const reponse = await fetch("/api/notes", {
-          method: "PUT",
-          body: JSON.stringify({ ...input, id: noteToEdit.id }),
-        });
-        if (!reponse.ok) throw Error("Status Code: " + reponse.status);
-      } else {
-        const response = await fetch("/api/notes", {
-          method: "POST",
-          body: JSON.stringify(input),
-        });
-        if (!response.ok) throw Error("Status Code: " + response.status);
-        form.reset();
+      const url = "/api/notes";
+      const method = noteToEdit ? "PUT" : "POST";
+      const body = noteToEdit
+        ? JSON.stringify({ ...input, id: noteToEdit._id })
+        : JSON.stringify(input);
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`,
+        );
       }
+
+      form.reset();
       router.refresh();
       setOpen(false);
     } catch (error) {
-      console.error("error");
-      alert("Something went wrong. Please try again later.");
+      console.error("Error submitting note:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again later.",
+      );
     }
   }
 
@@ -78,14 +90,28 @@ export default function AddNoteDialog({
     try {
       const response = await fetch("/api/notes", {
         method: "DELETE",
-        body: JSON.stringify({ id: noteToEdit?.id }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id: noteToEdit._id }),
       });
-      if (!response.ok) throw Error("Status Code: " + response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`,
+        );
+      }
+
       router.refresh();
       setOpen(false);
     } catch (error) {
-      console.error("error");
-      alert("Something went wrong. Please try again later.");
+      console.error("Error deleting note:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again later.",
+      );
     } finally {
       setDeleteInProgress(false);
     }

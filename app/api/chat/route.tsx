@@ -1,4 +1,4 @@
-import { MongoClient } from "mongodb";
+import mongoose from "mongoose";
 import openai, { getEmbedding } from "@/lib/openai";
 import { auth } from "@clerk/nextjs/server";
 import {
@@ -6,59 +6,51 @@ import {
   ChatCompletionMessageParam,
 } from "openai/resources/index.mjs";
 import { OpenAIStream, StreamingTextResponse } from "ai";
-
-// Define types for clarity and type safety
-interface Note {
-  id: string;
-  title: string;
-  content: string;
-  userId: string;
-  contentEmbedding: number[];
-}
+import Note, { NoteDocument, connectDB } from "@/lib/db/mongoose";
 
 // Function to find similar documents using Mongoose with types
 async function findSimilarDocuments(
   embedding: number[],
   userId: string,
-): Promise<Note[]> {
-  const url = process.env.MONGODB_URI || "mongodb://localhost:27017";
-  const client = new MongoClient(url);
+): Promise<NoteDocument[]> {
   try {
-    await client.connect();
-    const db = client.db("nextnotes-database"); // Replace with your database name
-    const collection = db.collection<Note>("notes"); // Replace with your collection name
+    await connectDB();
 
-    // Create a vector index if it doesn't exist
-    await collection.createIndex(
-      { contentEmbedding: "text" },
-      { name: "notes_index" },
-    );
-
-    const documents = await collection
-      .aggregate([
-        {
-          $vectorSearch: {
-            queryVector: embedding,
-            path: "contentEmbedding",
-            numCandidates: 50,
-            limit: 5,
-            index: "notes_index",
-          },
+    // First, try vector search
+    const vectorSearchAgg = [
+      {
+        $vectorSearch: {
+          index: "notes_index",
+          path: "contentEmbedding",
+          queryVector: embedding,
+          numCandidates: 50,
+          limit: 5,
         },
-      ])
-      .toArray();
+      },
+      {
+        $match: {
+          userId: userId,
+        },
+      },
+    ];
 
-    const notes: Note[] = documents.map((doc) => ({
-      id: doc._id.toString(), // Convert ObjectId to string
-      title: doc.title,
-      content: doc.content,
-      userId: doc.userId,
-      contentEmbedding: doc.contentEmbedding,
-    }));
+    let documents = await Note.aggregate(vectorSearchAgg);
 
-    return notes.filter((doc) => doc.userId === userId);
-  } finally {
-    await client.close();
+    // If vector search returns no results, fall back to a regular text search
+    if (documents.length === 0) {
+      documents = await Note.find({ userId: userId }).limit(5).lean();
+    }
+
+    console.log(
+      `Found ${documents.length} relevant documents for user ${userId}`,
+    );
+    return documents;
+  } catch (error) {
+    console.error("Error in findSimilarDocuments:", error);
+    if (error instanceof mongoose.Error) {
+      console.error("Mongoose error details:", error);
+    }
+    throw error;
   }
 }
 
@@ -67,31 +59,31 @@ export async function POST(req: Request) {
     const body = await req.json();
     const messages: ChatCompletionMessage[] = body.messages;
     const messagesTruncated = messages.slice(-6);
+    const userQuery = messagesTruncated
+      .map((message) => message.content)
+      .join("\n");
+    console.log("User query:", userQuery);
 
-    const embedding = await getEmbedding(
-      messagesTruncated.map((message) => message.content).join("\n"),
-    );
-
+    const embedding = await getEmbedding(userQuery);
     const { userId } = auth();
-
     if (!userId) {
-      throw new Error("Authentication failed: userId is null");
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const relevantNotes = await findSimilarDocuments(embedding, userId);
+    console.log("Relevant notes:", JSON.stringify(relevantNotes, null, 2));
 
     const systemMessage: ChatCompletionMessageParam = {
       role: "system",
       content:
-        "You are an intelligent note-taking assistant. You can answer any question about users' notes. If you don't know the answer, say that you don't know. Do not make up an answer." +
-        "The relevant notes for this query are: \n" +
+        "You are an intelligent note-taking assistant. Answer questions based on the user's notes. If the information isn't in the notes, say you don't know. Here are the relevant notes:\n\n" +
         relevantNotes
-          .map((note) => `Title: ${note.title}\n\nContent: \n${note.content}`)
-          .join("\n\n"),
+          .map((note) => `Note: ${note.title}\n${note.content}\n---`)
+          .join("\n"),
     };
 
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4-turbo-preview",
       stream: true,
       messages: [...messagesTruncated, systemMessage],
     });
@@ -99,7 +91,7 @@ export async function POST(req: Request) {
     const stream = OpenAIStream(response);
     return new StreamingTextResponse(stream);
   } catch (error) {
-    console.error(error);
+    console.error("Error in POST route:", error);
     return Response.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Note as NoteModel } from "@prisma/client";
+import type { NoteDocument } from "@/lib/db/mongoose";
 import { useState } from "react";
 import {
   Card,
@@ -12,11 +12,11 @@ import {
 import AddNoteDialog from "./AddNoteDialog";
 
 interface NoteProps {
-  note: NoteModel;
+  note: NoteDocument;
 }
 
 export default function Notes({ note }: NoteProps) {
-  const [showEditDiualog, setShowEditDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const wasUpdated = note.updatedAt > note.createdAt;
 
   const createdUpdatedAtTimestamp = (
@@ -41,7 +41,7 @@ export default function Notes({ note }: NoteProps) {
         </CardContent>
       </Card>
       <AddNoteDialog
-        open={showEditDiualog}
+        open={showEditDialog}
         setOpen={setShowEditDialog}
         noteToEdit={note}
       />

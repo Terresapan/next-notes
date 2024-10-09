@@ -8,33 +8,15 @@ export const metadata: Metadata = {
   title: "AI Powered Notes",
 };
 
-interface NoteData {
-  id: string;
-  title: string;
-  content: string | null;
-  userId: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export default async function NotesPage() {
   const { userId } = auth();
   if (!userId) throw Error("userId not found");
-
-  const notes = await Note.find({ userId }).lean();
-  const allNotes = notes.map((note: any) => ({
-    id: note._id.toString(),
-    title: note.title,
-    content: note.content,
-    userId: note.userId,
-    createdAt: note.createdAt,
-    updatedAt: note.updatedAt,
-  }));
+  const allNotes = await Note.find({ userId: userId });
 
   return (
     <>
       <div className="grid gap-3 p-24 md:grid-cols-2 lg:grid-cols-3">
-        {allNotes.map((note: NoteData) => (
+        {allNotes.map((note) => (
           <Notes note={note} key={note.id} />
         ))}
         {allNotes.length === 0 && (

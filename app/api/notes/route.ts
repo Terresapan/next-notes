@@ -1,23 +1,26 @@
-import { createNoteSchema } from "@/lib/validation/note";
-import { updateNoteSchema } from "@/lib/validation/note";
-import { deleteNoteSchema } from "@/lib/validation/note";
+import {
+  createNoteSchema,
+  updateNoteSchema,
+  deleteNoteSchema,
+} from "@/lib/validation/note";
 import { auth } from "@clerk/nextjs/server";
-import Note from "@/lib/db/mongoose";
+import Note, { connectDB } from "@/lib/db/mongoose";
 import { ObjectId } from "mongodb";
 
 export async function POST(request: Request) {
   try {
+    await connectDB();
     const body = await request.json();
-
     const parseResult = createNoteSchema.safeParse(body);
 
     if (!parseResult.success) {
-      console.log(parseResult.error);
-      return Response.json({ error: "Internal Server Error" }, { status: 400 });
+      return Response.json(
+        { error: parseResult.error.errors },
+        { status: 400 },
+      );
     }
 
     const { title, content } = parseResult.data;
-
     const { userId } = auth();
 
     if (!userId) {
@@ -30,80 +33,89 @@ export async function POST(request: Request) {
       content,
       userId,
       createdAt: new Date(),
-    } as any);
+    });
     return Response.json({ note }, { status: 201 });
   } catch (error) {
-    console.log(error);
-    return Response.json({ error: "Internal Server Error" }, { status: 500 });
+    console.error("Error creating note:", error);
+    return Response.json({ error: "Failed to create note" }, { status: 500 });
   }
 }
 
 export async function PUT(req: Request) {
   try {
+    await connectDB();
     const body = await req.json();
     const parseResult = updateNoteSchema.safeParse(body);
 
     if (!parseResult.success) {
-      console.log(parseResult.error);
-      return Response.json({ error: "Internal Server Error" }, { status: 400 });
+      return Response.json(
+        { error: parseResult.error.errors },
+        { status: 400 },
+      );
     }
 
     const { id, title, content } = parseResult.data;
-    const note = await Note.findById(id);
-
-    if (!note) {
-      return Response.json({ error: "Note not found" }, { status: 404 });
-    }
-
     const { userId } = auth();
 
-    if (!userId || userId !== note.userId) {
+    if (!userId) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await Note.findByIdAndUpdate(id, {
-      title,
-      content,
-      updatedAt: new Date(),
-    });
+    const updatedNote = await Note.findOneAndUpdate(
+      { _id: id, userId },
+      { title, content, updatedAt: new Date() },
+      { new: true },
+    );
 
-    return Response.json({ note: await Note.findById(id) }, { status: 200 });
+    if (!updatedNote) {
+      return Response.json(
+        { error: "Note not found or unauthorized" },
+        { status: 404 },
+      );
+    }
+
+    return Response.json({ note: updatedNote }, { status: 200 });
   } catch (error) {
-    console.error(error);
-    return Response.json({ error: "Internal Server Error" }, { status: 500 });
+    console.error("Error updating note:", error);
+    return Response.json({ error: "Failed to update note" }, { status: 500 });
   }
 }
 
 export async function DELETE(req: Request) {
   try {
+    await connectDB();
     const body = await req.json();
     const parseResult = deleteNoteSchema.safeParse(body);
 
     if (!parseResult.success) {
-      console.log(parseResult.error);
-      return Response.json({ error: "Internal Server Error" }, { status: 400 });
+      return Response.json(
+        { error: parseResult.error.errors },
+        { status: 400 },
+      );
     }
 
     const { id } = parseResult.data;
-    const note = await Note.findById(id);
-
-    if (!note) {
-      return Response.json({ error: "Note not found" }, { status: 404 });
-    }
-
     const { userId } = auth();
 
-    if (!userId || userId !== note.userId) {
+    if (!userId) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await Note.findByIdAndDelete(id);
-    return new Response(
-      JSON.stringify({ message: "Note deleted successfully" }),
+    const deletedNote = await Note.findOneAndDelete({ _id: id, userId });
+
+    if (!deletedNote) {
+      return Response.json(
+        { error: "Note not found or unauthorized" },
+        { status: 404 },
+      );
+    }
+
+    return Response.json(
+      { message: "Note deleted successfully" },
       { status: 200 },
     );
   } catch (error) {
-    console.error(error);
-    return Response.json({ error: "Internal Server Error" }, { status: 500 });
+    console.error("Error deleting note:", error);
+    return Response.json({ error: "Failed to delete note" }, { status: 500 });
   }
 }
