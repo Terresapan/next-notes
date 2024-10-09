@@ -45,9 +45,12 @@ export async function PUT(req: Request) {
   try {
     await connectDB();
     const body = await req.json();
+    console.log("Update request body:", body); // Log the request body
+
     const parseResult = updateNoteSchema.safeParse(body);
 
     if (!parseResult.success) {
+      console.log("Validation error:", parseResult.error.errors); // Log validation errors
       return Response.json(
         { error: parseResult.error.errors },
         { status: 400 },
@@ -58,6 +61,7 @@ export async function PUT(req: Request) {
     const { userId } = auth();
 
     if (!userId) {
+      console.log("Unauthorized: userId is null"); // Log unauthorized attempts
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -68,12 +72,16 @@ export async function PUT(req: Request) {
     );
 
     if (!updatedNote) {
+      console.log(
+        `Note not found or unauthorized. ID: ${id}, UserId: ${userId}`,
+      ); // Log failed updates
       return Response.json(
         { error: "Note not found or unauthorized" },
         { status: 404 },
       );
     }
 
+    console.log("Note updated successfully:", updatedNote); // Log successful updates
     return Response.json({ note: updatedNote }, { status: 200 });
   } catch (error) {
     console.error("Error updating note:", error);
